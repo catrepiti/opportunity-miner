@@ -7,6 +7,8 @@ import { upsertLead } from '@/lib/db'
 import { MiningRequest, NicheType, NICHE_LABELS } from '@/lib/types'
 import crypto from 'crypto'
 
+export const maxDuration = 60
+
 function generateId(name: string, city: string): string {
   return crypto.createHash('md5').update(`${name}-${city}`).digest('hex').slice(0, 12)
 }

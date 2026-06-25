@@ -4,6 +4,8 @@ import { analyzeLeadWithAI } from '@/lib/ai-analyzer'
 import { upsertLead } from '@/lib/db'
 import { NICHE_LABELS, NicheType } from '@/lib/types'
 
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   const { id } = await request.json()
 
