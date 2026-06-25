@@ -89,8 +89,10 @@ export function getLeads(filters?: {
   const mult = sortDir === 'desc' ? -1 : 1
 
   all.sort((a, b) => {
-    const av = (a as Record<string, unknown>)[sortBy]
-    const bv = (b as Record<string, unknown>)[sortBy]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const av = (a as any)[sortBy]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bv = (b as any)[sortBy]
     if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * mult
     if (typeof av === 'string' && typeof bv === 'string') return av.localeCompare(bv) * mult
     return 0
