@@ -13,6 +13,8 @@ const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0',
 ]
 
 function randomUA(): string {
@@ -37,8 +39,12 @@ export async function searchDuckDuckGo(query: string): Promise<RawSearchResult[]
     const response = await fetch(url, {
       headers: {
         'User-Agent': randomUA(),
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
       },
       signal: AbortSignal.timeout(15000),
     })
@@ -63,13 +69,7 @@ export async function searchDuckDuckGo(query: string): Promise<RawSearchResult[]
 
       const phone = extractPhone(snippet)
 
-      results.push({
-        title,
-        url: href,
-        snippet,
-        phone,
-        address: null,
-      })
+      results.push({ title, url: href, snippet, phone, address: null })
     })
   } catch {
     // silently fail, will try next source
@@ -86,8 +86,12 @@ export async function searchBing(query: string): Promise<RawSearchResult[]> {
     const response = await fetch(url, {
       headers: {
         'User-Agent': randomUA(),
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
       },
       signal: AbortSignal.timeout(15000),
     })
@@ -109,14 +113,105 @@ export async function searchBing(query: string): Promise<RawSearchResult[]> {
 
       const phone = extractPhone(snippet)
 
-      results.push({
-        title,
-        url: href,
-        snippet,
-        phone,
-        address: null,
-      })
+      results.push({ title, url: href, snippet, phone, address: null })
     })
+  } catch {
+    // silently fail
+  }
+
+  return results
+}
+
+export async function searchGoogle(query: string): Promise<RawSearchResult[]> {
+  const results: RawSearchResult[] = []
+
+  try {
+    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=BR&num=10`
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': randomUA(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Referer': 'https://www.google.com/',
+      },
+      signal: AbortSignal.timeout(15000),
+      redirect: 'follow',
+    })
+
+    if (!response.ok) return results
+
+    const html = await response.text()
+    const $ = cheerio.load(html)
+
+    $('div.g, div[data-hveid]').each((_, el) => {
+      const linkEl = $(el).find('a[href^="http"]').first()
+      const titleEl = $(el).find('h3').first()
+      const snippetEl = $(el).find('div[data-sncf], div.VwiC3b, span.st, div[style*="-webkit-line-clamp"]').first()
+
+      const href = linkEl.attr('href') ?? ''
+      const title = titleEl.text().trim()
+      const snippet = snippetEl.text().trim()
+
+      if (!title || !href || href.includes('google.com')) return
+
+      const phone = extractPhone(snippet)
+
+      results.push({ title, url: href, snippet, phone, address: null })
+    })
+  } catch {
+    // silently fail
+  }
+
+  return results
+}
+
+export async function searchDuckDuckGoAPI(query: string): Promise<RawSearchResult[]> {
+  const results: RawSearchResult[] = []
+
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1&skip_disambig=1`
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': randomUA(),
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(10000),
+    })
+
+    if (!response.ok) return results
+
+    const data = await response.json()
+
+    if (data.RelatedTopics) {
+      for (const topic of data.RelatedTopics) {
+        if (topic.FirstURL && topic.Text) {
+          results.push({
+            title: topic.Text.slice(0, 100),
+            url: topic.FirstURL,
+            snippet: topic.Text,
+            phone: extractPhone(topic.Text),
+            address: null,
+          })
+        }
+        if (topic.Topics) {
+          for (const sub of topic.Topics) {
+            if (sub.FirstURL && sub.Text) {
+              results.push({
+                title: sub.Text.slice(0, 100),
+                url: sub.FirstURL,
+                snippet: sub.Text,
+                phone: extractPhone(sub.Text),
+                address: null,
+              })
+            }
+          }
+        }
+      }
+    }
   } catch {
     // silently fail
   }
@@ -154,27 +249,28 @@ export async function mineByNicheAndRegion(
   const seenUrls = new Set<string>()
 
   for (const query of selectedQueries) {
-    const ddgResults = await searchDuckDuckGo(query)
-    await delay(1500 + Math.random() * 2000)
+    let found: RawSearchResult[] = []
 
-    if (ddgResults.length === 0) {
-      const bingResults = await searchBing(query)
-      await delay(1500 + Math.random() * 2000)
+    found = await searchGoogle(query)
 
-      for (const r of bingResults) {
-        if (!seenUrls.has(r.url)) {
-          seenUrls.add(r.url)
-          allResults.push(r)
-        }
-      }
-    } else {
-      for (const r of ddgResults) {
-        if (!seenUrls.has(r.url)) {
-          seenUrls.add(r.url)
-          allResults.push(r)
-        }
+    if (found.length === 0) {
+      await delay(800 + Math.random() * 700)
+      found = await searchDuckDuckGo(query)
+    }
+
+    if (found.length === 0) {
+      await delay(800 + Math.random() * 700)
+      found = await searchBing(query)
+    }
+
+    for (const r of found) {
+      if (!seenUrls.has(r.url)) {
+        seenUrls.add(r.url)
+        allResults.push(r)
       }
     }
+
+    await delay(1000 + Math.random() * 1500)
   }
 
   return allResults

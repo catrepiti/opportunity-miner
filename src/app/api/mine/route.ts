@@ -79,7 +79,19 @@ export async function POST(request: NextRequest) {
             })
 
             const rawResults = await mineByNicheAndRegion(niche, region.city, region.state, depth)
-            const relevant = rawResults.filter(r => isRelevantResult(r, niche))
+            console.log(`[mine] Raw results for ${niche} in ${region.city}: ${rawResults.length}`)
+            if (rawResults.length > 0) {
+              console.log(`[mine] Sample: ${rawResults[0].title} | ${rawResults[0].url}`)
+            }
+
+            let relevant = rawResults.length > 0
+              ? rawResults.filter(r => isRelevantResult(r, niche))
+              : rawResults
+
+            if (rawResults.length > 0 && relevant.length === 0) {
+              console.log(`[mine] All ${rawResults.length} filtered out by niche, using unfiltered`)
+              relevant = rawResults.slice(0, 10)
+            }
 
             send({
               type: 'found',
