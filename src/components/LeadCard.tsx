@@ -70,6 +70,45 @@ export function LeadCard({ lead, onStatusChange, onAnalyze }: {
             />
           </div>
 
+          {/* Contatos - sempre visíveis */}
+          <div className="text-xs space-y-1 mb-2">
+            {lead.phone && (
+              <div className="flex items-center gap-2 text-gray-300">
+                <span className="text-gray-500 w-16">Tel:</span>
+                <a href={`tel:${lead.phone}`} className="text-green-400 hover:underline">{lead.phone}</a>
+              </div>
+            )}
+            {lead.whatsapp && (
+              <div className="flex items-center gap-2 text-gray-300">
+                <span className="text-gray-500 w-16">WhatsApp:</span>
+                <a href={`https://wa.me/55${lead.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener" className="text-green-400 hover:underline">{lead.whatsapp}</a>
+              </div>
+            )}
+            {lead.email && (
+              <div className="flex items-center gap-2 text-gray-300">
+                <span className="text-gray-500 w-16">Email:</span>
+                <a href={`mailto:${lead.email}`} className="text-blue-400 hover:underline truncate">{lead.email}</a>
+              </div>
+            )}
+            {lead.website && (
+              <div className="flex items-center gap-2 text-gray-300">
+                <span className="text-gray-500 w-16">Site:</span>
+                <a href={lead.website} target="_blank" rel="noopener" className="text-blue-400 hover:underline truncate">
+                  {lead.website.replace(/^https?:\/\//, '').slice(0, 40)}
+                </a>
+              </div>
+            )}
+            {lead.address && (
+              <div className="flex items-center gap-2 text-gray-300">
+                <span className="text-gray-500 w-16">End.:</span>
+                <span className="truncate">{lead.address}</span>
+              </div>
+            )}
+            {!lead.phone && !lead.whatsapp && !lead.email && !lead.website && (
+              <div className="text-gray-600 italic">Sem dados de contato extraídos</div>
+            )}
+          </div>
+
           {/* Score breakdown */}
           <div className="flex gap-4 text-xs text-gray-500 mb-2">
             <span>Digital: <span className="text-green-400">{lead.digitalMaturityScore}</span>/40</span>
@@ -112,30 +151,22 @@ export function LeadCard({ lead, onStatusChange, onAnalyze }: {
       {/* Expanded details */}
       {expanded && (
         <div className="mt-3 pt-3 border-t border-gray-700/50 text-sm space-y-2">
-          {lead.phone && (
-            <div className="flex items-center gap-2 text-gray-300">
-              <span className="text-gray-500 w-20">Telefone:</span>
-              <a href={`tel:${lead.phone}`} className="text-green-400 hover:underline">{lead.phone}</a>
-            </div>
-          )}
-          {lead.website && (
-            <div className="flex items-center gap-2 text-gray-300">
-              <span className="text-gray-500 w-20">Site:</span>
-              <a href={lead.website} target="_blank" rel="noopener" className="text-blue-400 hover:underline truncate">
-                {lead.website.replace(/^https?:\/\//, '').slice(0, 40)}
-              </a>
-            </div>
-          )}
           {lead.instagram && (
             <div className="flex items-center gap-2 text-gray-300">
               <span className="text-gray-500 w-20">Instagram:</span>
               <span className="text-pink-400">{lead.instagram}</span>
             </div>
           )}
-          {lead.address && (
+          {lead.facebook && (
             <div className="flex items-center gap-2 text-gray-300">
-              <span className="text-gray-500 w-20">Endereço:</span>
-              <span>{lead.address}</span>
+              <span className="text-gray-500 w-20">Facebook:</span>
+              <span className="text-blue-400">{lead.facebook}</span>
+            </div>
+          )}
+          {lead.phones && lead.phones.length > 1 && (
+            <div className="flex items-center gap-2 text-gray-300">
+              <span className="text-gray-500 w-20">Outros tels:</span>
+              <span>{lead.phones.slice(1, 4).join(', ')}</span>
             </div>
           )}
           {lead.aiInsight && (
