@@ -31,6 +31,29 @@ function extractPhone(text: string): string | null {
   return match ? match[0].replace(/[^\d]/g, '') : null
 }
 
+function decodeBingUrl(bingUrl: string): string {
+  try {
+    const urlObj = new URL(bingUrl)
+    const u = urlObj.searchParams.get('u')
+    if (u) {
+      const decoded = Buffer.from(u.replace(/^a1/, ''), 'base64').toString('utf-8')
+      if (decoded.startsWith('http')) return decoded
+    }
+  } catch {}
+  return bingUrl
+}
+
+function cleanUrl(rawUrl: string): string {
+  if (rawUrl.includes('bing.com/ck/a')) return decodeBingUrl(rawUrl)
+  if (rawUrl.includes('google.com/url')) {
+    try {
+      const u = new URL(rawUrl)
+      return u.searchParams.get('q') ?? u.searchParams.get('url') ?? rawUrl
+    } catch {}
+  }
+  return rawUrl
+}
+
 export async function searchDuckDuckGo(query: string): Promise<RawSearchResult[]> {
   const results: RawSearchResult[] = []
 
@@ -66,6 +89,7 @@ export async function searchDuckDuckGo(query: string): Promise<RawSearchResult[]
       if (!title || !href) return
 
       if (!href.startsWith('http')) href = `https://${href}`
+      href = cleanUrl(href)
 
       const phone = extractPhone(snippet)
 
@@ -113,7 +137,7 @@ export async function searchBing(query: string): Promise<RawSearchResult[]> {
 
       const phone = extractPhone(snippet)
 
-      results.push({ title, url: href, snippet, phone, address: null })
+      results.push({ title, url: cleanUrl(href), snippet, phone, address: null })
     })
   } catch {
     // silently fail
@@ -156,11 +180,12 @@ export async function searchGoogle(query: string): Promise<RawSearchResult[]> {
       const title = titleEl.text().trim()
       const snippet = snippetEl.text().trim()
 
-      if (!title || !href || href.includes('google.com')) return
+      const realUrl = cleanUrl(href)
+      if (!title || !realUrl || realUrl.includes('google.com')) return
 
       const phone = extractPhone(snippet)
 
-      results.push({ title, url: href, snippet, phone, address: null })
+      results.push({ title, url: realUrl, snippet, phone, address: null })
     })
   } catch {
     // silently fail
