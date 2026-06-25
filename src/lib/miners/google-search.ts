@@ -279,12 +279,12 @@ export async function mineByNicheAndRegion(
     found = await searchGoogle(query)
 
     if (found.length === 0) {
-      await delay(800 + Math.random() * 700)
+      await delay(500 + Math.random() * 500)
       found = await searchDuckDuckGo(query)
     }
 
     if (found.length === 0) {
-      await delay(800 + Math.random() * 700)
+      await delay(500 + Math.random() * 500)
       found = await searchBing(query)
     }
 
@@ -295,7 +295,7 @@ export async function mineByNicheAndRegion(
       }
     }
 
-    await delay(1000 + Math.random() * 1500)
+    await delay(500 + Math.random() * 500)
   }
 
   return allResults

@@ -121,7 +121,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
         'Accept': 'text/html',
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(6000),
     })
 
     result.loadTimeMs = Date.now() - startTime

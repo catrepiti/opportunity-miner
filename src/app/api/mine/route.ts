@@ -28,7 +28,13 @@ function isRelevantResult(result: RawSearchResult, niche: NicheType): boolean {
     'yelp', 'tripadvisor', 'reclameaqui', 'jusbrasil',
     'qual o telefone', 'telefones e endereços',
     'pinterest', 'reddit', 'quora',
+    'dicio.com', 'dicionário', 'significado de', 'o que é',
+    'tuasaude.com', 'minhavida.com', 'drauzio',
+    'sebrae', 'gov.br', 'edu.br',
   ]
+
+  const urlExcludes = ['dicio.com', 'wikipedia.org', 'youtube.com', 'tuasaude.com', 'minhavida.com', 'gov.br', 'edu.br']
+  if (urlExcludes.some(p => result.url.toLowerCase().includes(p))) return false
 
   if (excludePatterns.some(p => combined.includes(p))) return false
 
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
               count: relevant.length,
             })
 
-            for (const result of relevant.slice(0, 15)) {
+            for (const result of relevant.slice(0, 8)) {
               totalProcessed++
 
               send({
@@ -128,7 +134,7 @@ export async function POST(request: NextRequest) {
                 niche,
               )
 
-              if (scoring.total < 25) continue
+              if (scoring.total < 10) continue
 
               const leadId = generateId(result.title, region.city)
 
