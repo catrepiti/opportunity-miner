@@ -188,14 +188,37 @@ export async function POST(request: NextRequest) {
 
               totalLeads++
 
+              const now = new Date().toISOString()
               send({
                 type: 'lead',
                 message: `Lead salvo: ${result.title} (Score: ${scoring.total})`,
                 lead: {
                   id: leadId,
                   name: result.title,
+                  niche,
+                  region: `${region.city}/${region.state}`,
+                  city: region.city,
+                  state: region.state,
+                  phone: primaryPhone,
+                  phones: contacts.phones,
+                  email: contacts.emails[0] ?? null,
+                  whatsapp: whatsappNumber,
+                  website: websiteAnalysis.hasWebsite ? result.url : null,
+                  instagram: instagramHandle ?? (hasInstagram ? 'detectado' : null),
+                  facebook: contacts.facebookUrl ?? (hasFacebook ? 'detectado' : null),
+                  googleMapsUrl: null,
+                  googleRating: null,
+                  googleReviews: null,
+                  address: contacts.address ?? result.address,
                   score: scoring.total,
-                  niche: NICHE_LABELS[niche],
+                  digitalMaturityScore: scoring.digital,
+                  businessViabilityScore: scoring.viability,
+                  accessibilityScore: scoring.access,
+                  aiInsight,
+                  approachSuggestion,
+                  status: 'novo',
+                  createdAt: now,
+                  updatedAt: now,
                 },
               })
             }

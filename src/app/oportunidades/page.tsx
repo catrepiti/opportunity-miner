@@ -11,11 +11,39 @@ export default function Oportunidades() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [analyzing, setAnalyzing] = useState<string | null>(null)
 
+  const loadLeadsFromStorage = (): Lead[] => {
+    try {
+      const raw = localStorage.getItem('opportunity-miner-leads')
+      return raw ? JSON.parse(raw) : []
+    } catch { return [] }
+  }
+
+  const saveLeadsToStorage = (all: Lead[]) => {
+    try { localStorage.setItem('opportunity-miner-leads', JSON.stringify(all)) } catch {}
+  }
+
   const fetchTopLeads = useCallback(async () => {
-    const res = await fetch('/api/leads?sortBy=score&sortDir=desc&limit=50')
-    const data = await res.json()
-    setLeads(data.leads ?? [])
+    // Load from localStorage first (works on Vercel)
+    const stored = loadLeadsFromStorage()
+    if (stored.length > 0) {
+      const sorted = stored.sort((a, b) => b.score - a.score)
+      setLeads(sorted)
+    }
+    // Try server too (works locally)
+    try {
+      const res = await fetch('/api/leads?sortBy=score&sortDir=desc&limit=50')
+      const data = await res.json()
+      if (data.leads?.length > 0) {
+        const merged = [...stored]
+        for (const sl of data.leads) {
+          if (!merged.find(m => m.id === sl.id)) merged.push(sl)
+        }
+        saveLeadsToStorage(merged)
+        setLeads(merged.sort((a, b) => b.score - a.score))
+      }
+    } catch {}
     setLoading(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => { fetchTopLeads() }, [fetchTopLeads])
@@ -29,28 +57,28 @@ export default function Oportunidades() {
     })
     if (res.ok) {
       const data = await res.json()
-      setLeads(prev => prev.map(l => l.id === id ? {
-        ...l, aiInsight: data.insight, approachSuggestion: data.approachSuggestion,
-      } : l))
+      const update = (l: Lead) => l.id === id ? { ...l, aiInsight: data.insight, approachSuggestion: data.approachSuggestion } : l
+      setLeads(prev => prev.map(update))
       if (selectedLead?.id === id) {
-        setSelectedLead(prev => prev ? {
-          ...prev, aiInsight: data.insight, approachSuggestion: data.approachSuggestion,
-        } : null)
+        setSelectedLead(prev => prev ? update(prev) : null)
       }
+      saveLeadsToStorage(loadLeadsFromStorage().map(update))
     }
     setAnalyzing(null)
   }
 
   const handleStatusChange = async (id: string, status: LeadStatus) => {
-    await fetch('/api/leads', {
+    fetch('/api/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
-    })
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l))
+    }).catch(() => {})
+    const update = (l: Lead) => l.id === id ? { ...l, status } : l
+    setLeads(prev => prev.map(update))
     if (selectedLead?.id === id) {
-      setSelectedLead(prev => prev ? { ...prev, status } : null)
+      setSelectedLead(prev => prev ? update(prev) : null)
     }
+    saveLeadsToStorage(loadLeadsFromStorage().map(update))
   }
 
   const topLead = leads[0] ?? null

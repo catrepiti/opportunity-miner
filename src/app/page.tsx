@@ -24,28 +24,63 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<SortOption>('score')
   const [activeTab, setActiveTab] = useState<'mine' | 'leads'>('mine')
 
-  const fetchLeads = useCallback(async () => {
-    const params = new URLSearchParams()
-    if (filterNiche !== 'all') params.set('niche', filterNiche)
-    if (filterStatus !== 'all') params.set('status', filterStatus)
-    params.set('sortBy', sortBy === 'name' ? 'name' : sortBy === 'created_at' ? 'created_at' : 'score')
-    params.set('sortDir', sortBy === 'name' ? 'asc' : 'desc')
+  const saveLeadsToStorage = (leadsToSave: Lead[]) => {
+    try { localStorage.setItem('opportunity-miner-leads', JSON.stringify(leadsToSave)) } catch {}
+  }
 
-    const res = await fetch(`/api/leads?${params}`)
-    const data = await res.json()
-    setLeads(data.leads ?? [])
+  const loadLeadsFromStorage = (): Lead[] => {
+    try {
+      const raw = localStorage.getItem('opportunity-miner-leads')
+      return raw ? JSON.parse(raw) : []
+    } catch { return [] }
+  }
+
+  const computeStats = (all: Lead[]) => {
+    const byNiche: Record<string, number> = {}
+    const byStatus: Record<string, number> = {}
+    let totalScore = 0, topScore = 0
+    for (const l of all) {
+      byNiche[l.niche] = (byNiche[l.niche] ?? 0) + 1
+      byStatus[l.status] = (byStatus[l.status] ?? 0) + 1
+      totalScore += l.score
+      if (l.score > topScore) topScore = l.score
+    }
+    return { total: all.length, byNiche, byStatus, avgScore: all.length > 0 ? Math.round(totalScore / all.length) : 0, topScore }
+  }
+
+  const loadAndFilter = useCallback(() => {
+    let all = loadLeadsFromStorage()
+    if (filterNiche !== 'all') all = all.filter(l => l.niche === filterNiche)
+    if (filterStatus !== 'all') all = all.filter(l => l.status === filterStatus)
+    const mult = sortBy === 'name' ? 1 : -1
+    all.sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name)
+      if (sortBy === 'created_at') return (a.createdAt > b.createdAt ? -1 : 1)
+      return (b.score - a.score)
+    })
+    setLeads(all)
+    setStats(computeStats(loadLeadsFromStorage()))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterNiche, filterStatus, sortBy])
 
-  const fetchStats = useCallback(async () => {
-    const res = await fetch('/api/leads?action=stats')
-    const data = await res.json()
-    setStats(data)
-  }, [])
-
   useEffect(() => {
-    fetchLeads()
-    fetchStats()
-  }, [fetchLeads, fetchStats])
+    loadAndFilter()
+    // also try server (works locally, may fail on Vercel)
+    fetch('/api/leads?sortBy=score&sortDir=desc')
+      .then(r => r.json())
+      .then(data => {
+        if (data.leads?.length > 0) {
+          const stored = loadLeadsFromStorage()
+          const merged = [...stored]
+          for (const sl of data.leads) {
+            if (!merged.find(m => m.id === sl.id)) merged.push(sl)
+          }
+          saveLeadsToStorage(merged)
+          loadAndFilter()
+        }
+      })
+      .catch(() => {})
+  }, [loadAndFilter])
 
   const startMining = async (
     niches: NicheType[],
@@ -84,9 +119,19 @@ export default function Home() {
             const data = JSON.parse(line.slice(6))
             setLogEntries(prev => [...prev, { ...data, timestamp: Date.now() }])
 
+            if (data.type === 'lead' && data.lead?.id) {
+              const newLead = data.lead as Lead
+              setLeads(prev => {
+                const exists = prev.find(l => l.id === newLead.id)
+                const updated = exists ? prev.map(l => l.id === newLead.id ? newLead : l) : [...prev, newLead]
+                saveLeadsToStorage(updated)
+                return updated
+              })
+              setStats(prev => prev ? { ...prev, total: (prev.total ?? 0) + 1 } : computeStats([newLead]))
+            }
+
             if (data.type === 'complete') {
-              await fetchLeads()
-              await fetchStats()
+              loadAndFilter()
             }
           } catch {
             // skip malformed lines
@@ -105,13 +150,18 @@ export default function Home() {
   }
 
   const handleStatusChange = async (id: string, status: LeadStatus) => {
-    await fetch('/api/leads', {
+    fetch('/api/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
+    }).catch(() => {})
+    setLeads(prev => {
+      const updated = prev.map(l => l.id === id ? { ...l, status } : l)
+      const all = loadLeadsFromStorage().map(l => l.id === id ? { ...l, status } : l)
+      saveLeadsToStorage(all)
+      setStats(computeStats(all))
+      return updated
     })
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l))
-    await fetchStats()
   }
 
   const handleAnalyze = async (id: string) => {
@@ -122,11 +172,12 @@ export default function Home() {
     })
     if (res.ok) {
       const data = await res.json()
-      setLeads(prev => prev.map(l => l.id === id ? {
-        ...l,
-        aiInsight: data.insight,
-        approachSuggestion: data.approachSuggestion,
-      } : l))
+      setLeads(prev => {
+        const updated = prev.map(l => l.id === id ? { ...l, aiInsight: data.insight, approachSuggestion: data.approachSuggestion } : l)
+        const all = loadLeadsFromStorage().map(l => l.id === id ? { ...l, aiInsight: data.insight, approachSuggestion: data.approachSuggestion } : l)
+        saveLeadsToStorage(all)
+        return updated
+      })
     }
   }
 
