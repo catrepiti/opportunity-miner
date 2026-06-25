@@ -2,7 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import { Lead, LeadStatus } from './types'
 
-const DB_PATH = path.join(process.cwd(), 'data', 'leads.json')
+const isVercel = !!process.env.VERCEL
+const DB_PATH = isVercel
+  ? path.join('/tmp', 'leads.json')
+  : path.join(process.cwd(), 'data', 'leads.json')
 
 interface DB {
   leads: Record<string, Lead>
