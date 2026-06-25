@@ -182,7 +182,37 @@ export default function Home() {
   }
 
   const exportLeads = (format: 'csv' | 'json') => {
-    window.open(`/api/export?format=${format}`, '_blank')
+    const all = loadLeadsFromStorage()
+    if (all.length === 0) return
+
+    let content: string
+    let mime: string
+    let filename: string
+
+    if (format === 'json') {
+      content = JSON.stringify(all, null, 2)
+      mime = 'application/json'
+      filename = 'leads-minerados.json'
+    } else {
+      const headers = ['Nome', 'Nicho', 'Cidade', 'Estado', 'Score', 'Telefone', 'WhatsApp', 'Email', 'Website', 'Instagram', 'Facebook', 'Endereço', 'Insight', 'Abordagem', 'Status']
+      const rows = all.map(l => [
+        l.name, l.niche, l.city, l.state, l.score,
+        l.phone ?? '', l.whatsapp ?? '', l.email ?? '', l.website ?? '',
+        l.instagram ?? '', l.facebook ?? '', l.address ?? '',
+        l.aiInsight ?? '', l.approachSuggestion ?? '', l.status,
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      content = [headers.join(','), ...rows].join('\n')
+      mime = 'text/csv'
+      filename = 'leads-minerados.csv'
+    }
+
+    const blob = new Blob([content], { type: `${mime};charset=utf-8` })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
