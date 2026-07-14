@@ -5,17 +5,17 @@ export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const config = getConfig()
-  return NextResponse.json({
-    config,
-    nextTargets: pickTargets(config),
-    nichePerformance: computeNichePerformance(),
-    runs: getRuns(30),
-  })
+  const config = await getConfig()
+  const [nextTargets, nichePerformance, runs] = await Promise.all([
+    pickTargets(config),
+    computeNichePerformance(),
+    getRuns(30),
+  ])
+  return NextResponse.json({ config, nextTargets, nichePerformance, runs })
 }
 
 export async function POST(request: NextRequest) {
-  const config = getConfig()
+  const config = await getConfig()
   if (!config.enabled) {
     return NextResponse.json({ error: 'Mineração automática desativada na configuração' }, { status: 409 })
   }
@@ -32,6 +32,6 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const body = await request.json()
-  const config = saveConfig(body)
+  const config = await saveConfig(body)
   return NextResponse.json(config)
 }

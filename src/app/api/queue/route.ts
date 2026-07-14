@@ -9,18 +9,21 @@ export const dynamic = 'force-dynamic'
  * ordenados por score, prontos para abordagem.
  */
 export async function GET() {
-  const config = getConfig()
+  const config = await getConfig()
 
-  const { leads: qualified } = getLeads({ status: 'qualificado', minScore: config.minScoreForQueue, limit: 100 })
-  const { leads: fresh } = getLeads({ status: 'novo', minScore: config.minScoreForQueue, limit: 100 })
-  const { leads: contacted } = getLeads({ status: 'contatado', limit: 200 })
+  const [{ leads: qualified }, { leads: fresh }, { leads: contacted }, stats, runs] = await Promise.all([
+    getLeads({ status: 'qualificado', minScore: config.minScoreForQueue, limit: 100 }),
+    getLeads({ status: 'novo', minScore: config.minScoreForQueue, limit: 100 }),
+    getLeads({ status: 'contatado', limit: 200 }),
+    getStats(),
+    getRuns(1),
+  ])
 
   const queue = [...qualified, ...fresh]
     .sort((a, b) => b.score - a.score)
     .slice(0, 30)
 
-  const stats = getStats()
-  const lastRun = getRuns(1)[0] ?? null
+  const lastRun = runs[0] ?? null
 
   const today = new Date().toISOString().slice(0, 10)
   const contactedToday = contacted.filter(l => l.updatedAt.slice(0, 10) === today).length

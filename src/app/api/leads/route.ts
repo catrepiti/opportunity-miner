@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const action = params.get('action')
 
   if (action === 'stats') {
-    const stats = getStats()
+    const stats = await getStats()
     return NextResponse.json(stats)
   }
 
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     sortDir: (params.get('sortDir') as 'asc' | 'desc') ?? 'desc',
   }
 
-  const result = getLeads(filters)
+  const result = await getLeads(filters)
   return NextResponse.json(result)
 }
 
@@ -35,7 +35,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'ID e status são obrigatórios' }, { status: 400 })
   }
 
-  updateLeadStatus(id, status)
+  await updateLeadStatus(id, status)
   return NextResponse.json({ ok: true })
 }
 
@@ -45,6 +45,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 })
   }
 
-  deleteLead(id)
+  await deleteLead(id)
   return NextResponse.json({ ok: true })
 }

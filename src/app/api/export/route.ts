@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const format = params.get('format') ?? 'csv'
   const minScore = params.get('minScore') ? parseInt(params.get('minScore')!) : 0
 
-  const { leads } = getLeads({ minScore, limit: 1000 })
+  const { leads } = await getLeads({ minScore, limit: 1000 })
 
   if (format === 'json') {
     return NextResponse.json(leads, {

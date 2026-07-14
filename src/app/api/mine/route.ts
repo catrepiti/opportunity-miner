@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
               const primaryPhone = contacts.phones[0] ?? result.phone
               const whatsappNumber = contacts.whatsapp ?? (contacts.phones[0] ? contacts.phones[0] : null)
 
-              upsertLead({
+              await upsertLead({
                 id: leadId,
                 name: result.title,
                 niche,

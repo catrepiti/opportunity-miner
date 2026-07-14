@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 })
   }
 
-  const lead = getLeadById(id)
+  const lead = await getLeadById(id)
   if (!lead) {
     return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
   }
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     snippet: '',
   })
 
-  upsertLead({
+  await upsertLead({
     ...lead,
     aiInsight: result.insight,
     approachSuggestion: result.approachSuggestion,

@@ -5,7 +5,10 @@ import { mineByNicheAndRegion, RawSearchResult } from './miners/google-search'
 import { analyzeWebsite } from './miners/website-analyzer'
 import { calculateScore } from './scorer'
 import { analyzeLeadWithAI } from './ai-analyzer'
-import { upsertLead, getLeads } from './db'
+import {
+  upsertLead, getLeads, usingPostgres,
+  dbGetConfigJson, dbSaveConfigJson, dbGetRuns, dbCountRuns, dbAppendRun,
+} from './db'
 import { NicheType, RegionConfig, NICHE_LABELS } from './types'
 
 const DATA_DIR = path.join(process.cwd(), 'data')
@@ -56,7 +59,14 @@ function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 }
 
-export function getConfig(): AutoMineConfig {
+export async function getConfig(): Promise<AutoMineConfig> {
+  if (usingPostgres()) {
+    const stored = await dbGetConfigJson<Partial<AutoMineConfig>>()
+    if (stored) return { ...DEFAULT_CONFIG, ...stored }
+    await dbSaveConfigJson(DEFAULT_CONFIG)
+    return DEFAULT_CONFIG
+  }
+
   ensureDataDir()
   try {
     if (fs.existsSync(CONFIG_PATH)) {
@@ -67,13 +77,21 @@ export function getConfig(): AutoMineConfig {
   return DEFAULT_CONFIG
 }
 
-export function saveConfig(config: Partial<AutoMineConfig>): AutoMineConfig {
-  const merged = { ...getConfig(), ...config }
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2))
+export async function saveConfig(config: Partial<AutoMineConfig>): Promise<AutoMineConfig> {
+  const merged = { ...(await getConfig()), ...config }
+  if (usingPostgres()) {
+    await dbSaveConfigJson(merged)
+  } else {
+    ensureDataDir()
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2))
+  }
   return merged
 }
 
-export function getRuns(limit = 30): AutoMineRun[] {
+export async function getRuns(limit = 30): Promise<AutoMineRun[]> {
+  if (usingPostgres()) {
+    return (await dbGetRuns<AutoMineRun>(limit)) ?? []
+  }
   try {
     if (fs.existsSync(RUNS_PATH)) {
       const runs: AutoMineRun[] = JSON.parse(fs.readFileSync(RUNS_PATH, 'utf-8'))
@@ -83,7 +101,16 @@ export function getRuns(limit = 30): AutoMineRun[] {
   return []
 }
 
-function appendRun(run: AutoMineRun): void {
+async function countRuns(): Promise<number> {
+  if (usingPostgres()) return (await dbCountRuns()) ?? 0
+  try {
+    if (fs.existsSync(RUNS_PATH)) return JSON.parse(fs.readFileSync(RUNS_PATH, 'utf-8')).length
+  } catch {}
+  return 0
+}
+
+async function appendRun(run: AutoMineRun): Promise<void> {
+  if (await dbAppendRun(run.id, run, run.finishedAt)) return
   ensureDataDir()
   const runs = fs.existsSync(RUNS_PATH) ? JSON.parse(fs.readFileSync(RUNS_PATH, 'utf-8')) : []
   runs.push(run)
@@ -95,8 +122,8 @@ function appendRun(run: AutoMineRun): void {
  * (leads que viraram qualificado/contatado sobre o total minerado)
  * e prioriza os nichos que mais convertem nas próximas rodadas.
  */
-export function computeNichePerformance(): Record<string, { total: number; converted: number; rate: number }> {
-  const { leads } = getLeads({ limit: 10000 })
+export async function computeNichePerformance(): Promise<Record<string, { total: number; converted: number; rate: number }>> {
+  const { leads } = await getLeads({ limit: 10000 })
   const perf: Record<string, { total: number; converted: number; rate: number }> = {}
   for (const l of leads) {
     if (!perf[l.niche]) perf[l.niche] = { total: 0, converted: 0, rate: 0 }
@@ -113,9 +140,9 @@ export function computeNichePerformance(): Record<string, { total: number; conve
  * Seleciona os alvos da rodada: rotaciona nichos/regiões pelo número de runs
  * já feitos, mas dá prioridade extra a nichos com melhor conversão histórica.
  */
-export function pickTargets(config: AutoMineConfig): { niches: NicheType[]; regions: RegionConfig[] } {
-  const runCount = getRuns(200).length
-  const perf = computeNichePerformance()
+export async function pickTargets(config: AutoMineConfig): Promise<{ niches: NicheType[]; regions: RegionConfig[] }> {
+  const runCount = await countRuns()
+  const perf = await computeNichePerformance()
 
   const ranked = [...config.niches].sort((a, b) => {
     const ra = perf[a]?.total >= 5 ? perf[a].rate : 0.15 // nichos sem histórico ganham taxa neutra
@@ -182,8 +209,8 @@ function isRelevantResult(result: RawSearchResult, niche: NicheType): boolean {
 }
 
 export async function runAutoMine(overrides?: Partial<AutoMineConfig>): Promise<AutoMineRun> {
-  const config = { ...getConfig(), ...overrides }
-  const { niches, regions } = pickTargets(config)
+  const config = { ...(await getConfig()), ...overrides }
+  const { niches, regions } = await pickTargets(config)
   const startedAt = new Date().toISOString()
   const errors: string[] = []
 
@@ -239,7 +266,7 @@ export async function runAutoMine(overrides?: Partial<AutoMineConfig>): Promise<
             } catch {}
           }
 
-          upsertLead({
+          await upsertLead({
             id: generateId(result.title, region.city),
             name: result.title,
             niche,
@@ -281,6 +308,6 @@ export async function runAutoMine(overrides?: Partial<AutoMineConfig>): Promise<
     aiDiagnoses,
     errors,
   }
-  appendRun(run)
+  await appendRun(run)
   return run
 }
